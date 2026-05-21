@@ -1,0 +1,51 @@
+name: Reusable fork sync
+
+on:
+  workflow_call:
+    inputs:
+      upstream_repo:
+        description: 'Upstream repo in owner/name format'
+        required: true
+        type: string
+      branch:
+        description: 'Branch to sync'
+        required: true
+        type: string
+      strategy:
+        description: 'merge or rebase'
+        required: false
+        type: string
+        default: 'rebase'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream "https://github.com/${{ inputs.upstream_repo }}.git"
+          git fetch upstream "${{ inputs.branch }}"
+
+      - name: Sync (${{ inputs.strategy }})
+        run: |
+          if [ "${{ inputs.strategy }}" = "rebase" ]; then
+            git rebase "upstream/${{ inputs.branch }}"
+          else
+            git merge "upstream/${{ inputs.branch }}" --no-edit
+          fi
+
+      - name: Push changes
+        run: git push origin "${{ inputs.branch }}" --force-with-lease
